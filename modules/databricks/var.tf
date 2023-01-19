@@ -3,9 +3,7 @@ variable "virtualnetwork" {}
 variable "subnets" {}
 variable "tags" {}
 variable "random" {}
-variable "databricks_workspace" {
-  
-}
-variable "vnet_prefix" {
-  
-}
+variable "databricks_workspace" {}
+variable "vnet_prefix" {}
+variable "nsg_name" {}
+variable "resource_names" {}

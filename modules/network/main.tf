@@ -1,19 +1,7 @@
 
-
-locals {
-  vnet-name = "vnet-adb-${var.random}"
-}
-
-# # azure network security group
-# resource "azurerm_network_security_group" "nsg" {
-#   name                = "nsg-adb-${var.random}"
-#   location            = var.resourcegroup.location
-#   resource_group_name = var.resourcegroup.name
-#   tags                = var.tags
-# }
-
+# Create Virtual Network (VNET)
 resource "azurerm_virtual_network" "vnet" {
-  name                = local.vnet-name
+  name                = var.virtualnetwork.name
   location            = var.resourcegroup.location
   resource_group_name = var.resourcegroup.name
   address_space       = var.virtualnetwork["address_space"]
@@ -24,7 +12,7 @@ resource "azurerm_virtual_network" "vnet" {
 Loop through all of the subnets defined in the 'subnets' variable. 
 */
 resource "azurerm_subnet" "subnets" {
-    depends_on = [
+  depends_on = [
       azurerm_virtual_network.vnet
     ]
 	for_each = {
@@ -51,35 +39,18 @@ resource "azurerm_subnet" "subnets" {
   If a subnet delegation is needed use the 'delegation' variable. If this variable has a value it will
   be configured on the subnet. If there is no delegation nothing will be configured on the subnet. 
   */
-  # dynamic "delegation" {
-  #   for_each = toset(each.value.delegation != null ? ["fake"] : [])
-  #   content {
-  #     name = "webApp"
-  #     service_delegation {
-  #       name = each.value.delegation
-  #     }  
-  #   }
-  # }
-  delegation {
-    name = "databricks-${each.value.name}"
-
-    service_delegation {
-      name = "Microsoft.Databricks/workspaces"
-      actions = [
-        "Microsoft.Network/virtualNetworks/subnets/join/action",
-        "Microsoft.Network/virtualNetworks/subnets/prepareNetworkPolicies/action",
-        "Microsoft.Network/virtualNetworks/subnets/unprepareNetworkPolicies/action",
-      ]      
-    }  
+  dynamic "delegation" {
+    for_each = toset(each.value.delegation != null ? ["fake"] : [])
+    content {
+      name = "databricks-${each.value.name}"
+      service_delegation {
+        name = "Microsoft.Databricks/workspaces"
+        actions = [
+          "Microsoft.Network/virtualNetworks/subnets/join/action",
+          "Microsoft.Network/virtualNetworks/subnets/prepareNetworkPolicies/action",
+          "Microsoft.Network/virtualNetworks/subnets/unprepareNetworkPolicies/action",
+        ]         
+      }  
+    }
   }
 }
-
-# azure network security group association
-# resource "azurerm_subnet_network_security_group_association" "nsg" {
-#   	for_each = {
-# 		for index, subnet in var.subnets:
-# 		subnet.name => subnet
-# 	}
-#   subnet_id                 = azurerm_subnet.subnets[each.value.name].id
-#   network_security_group_id = azurerm_network_security_group.nsg.id
-# }

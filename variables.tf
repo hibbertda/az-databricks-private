@@ -20,7 +20,9 @@ variable "existing_resourceGroup" {
 variable "virtualNetwork" {
   description = "Virtual network configuration"
   type = object({
-    address_space= optional(list(string)) # List of IPv4 address space(s) to configure on the virtual network 
+    name          = optional(string, "vnet-adb")
+    nsg_name      = optional(string, "nsg-adb")
+    address_space = optional(list(string)) # List of IPv4 address space(s) to configure on the virtual network 
   })
 }
 
@@ -51,8 +53,18 @@ variable "subnets" {
 variable "databricks_workspace" {
   description = "Azure Databricks workspace configuration"
   type = object({
-    name      = string
-    sku_name  = optional(string, "standard")
-    sku_tier  = optional(string, "standard")
+    name                        = string
+    sku_name                    = optional(string, "standard")
+    sku_tier                    = optional(string, "standard")
+    managed_resource_group_name = optional(string, "rg-adb-managed")
   })
+}
+
+variable "resource_names" {
+  description = "(Optional) Set names for deployed resources"
+  type = object(
+    {
+      nat_gateway_name  = optional(string, "natgw-adb")
+    }
+  )
 }

@@ -1,23 +1,12 @@
 # Deploy Azure  Databricks workspace
-#
 # This module deploys an Azure Databricks workspace
 
 # azure network security group
 resource "azurerm_network_security_group" "nsg" {
-  name                = "nsg-adb-${var.random}"
+  name                = var.nsg_name
   location            = var.resourcegroup.location
   resource_group_name = var.resourcegroup.name
   tags                = var.tags
-}
-
-data "azurerm_subnet" "subnets" {
-  for_each = {
-		for index, subnet in var.subnets:
-		subnet.name => subnet
-	}
-  name                 = each.value.name
-  virtual_network_name = var.virtualnetwork.name
-  resource_group_name  = var.resourcegroup.name
 }
 
 #azure network security group association
@@ -26,7 +15,7 @@ resource "azurerm_subnet_network_security_group_association" "nsg" {
 		for index, subnet in var.subnets:
 		subnet.name => subnet
 	}
-  subnet_id                 = data.azurerm_subnet.subnets[each.value.name].id
+  subnet_id                 = var.subnets[each.value.name].id
   network_security_group_id = azurerm_network_security_group.nsg.id
 }
 
@@ -36,13 +25,13 @@ resource "azurerm_subnet_nat_gateway_association" "nat_gateway" {
 		for index, subnet in var.subnets:
 		subnet.name => subnet
 	}
-  subnet_id      = data.azurerm_subnet.subnets[each.value.name].id
+  subnet_id      = var.subnets[each.value.name].id
   nat_gateway_id = azurerm_nat_gateway.nat_gateway.id
 }
 
-# azure public ip
+# azure public ip for nat gateway
 resource "azurerm_public_ip" "nat_gateway_public_ip" {
-  name                = "nat-gateway-public-ip-${var.random}"
+  name                = "pip-${var.resource_names.nat_gateway_name}-${var.random}"
   location            = var.resourcegroup.location
   resource_group_name = var.resourcegroup.name
   tags                = var.tags
@@ -53,7 +42,7 @@ resource "azurerm_public_ip" "nat_gateway_public_ip" {
 
 # azure nat gateway
 resource "azurerm_nat_gateway" "nat_gateway" {
-  name                = "nat-gateway-${var.random}"
+  name                = "${var.resource_names.nat_gateway_name}-${var.random}"
   location            = var.resourcegroup.location
   resource_group_name = var.resourcegroup.name
   tags                = var.tags
@@ -74,10 +63,9 @@ resource "azurerm_databricks_workspace" "adb_workspace" {
   tags                = var.tags
 
   sku                 = var.databricks_workspace.sku_name
-  #tier                = var.databricks_workspace.sku_tier
-
-  public_network_access_enabled = true
+  public_network_access_enabled = false
   network_security_group_rules_required = "NoAzureDatabricksRules"
+  managed_resource_group_name = "${var.databricks_workspace.managed_resource_group_name}-${var.random}"
 
   custom_parameters {
     no_public_ip        = true
@@ -85,13 +73,25 @@ resource "azurerm_databricks_workspace" "adb_workspace" {
     public_subnet_name  = "public-subnet"
     private_subnet_name = "private-subnet"
     nat_gateway_name    = azurerm_nat_gateway.nat_gateway.name
-    #vnet_address_prefix = var.vnet_prefix
 
-    public_subnet_network_security_group_association_id = azurerm_network_security_group.nsg.id
-    private_subnet_network_security_group_association_id = azurerm_network_security_group.nsg.id
-
+    public_subnet_network_security_group_association_id   = azurerm_network_security_group.nsg.id
+    private_subnet_network_security_group_association_id  = azurerm_network_security_group.nsg.id
   }
 }
 
+resource "azurerm_private_endpoint" "adb" {
+  name = "pe-${var.databricks_workspace.name}-${var.random}"
+  resource_group_name = var.resourcegroup.name
+  location            = var.resourcegroup.location
+  subnet_id           = var.subnets["private-endpoint"].id
 
+  custom_network_interface_name = "nic-pe-${var.databricks_workspace.name}-${var.random}"
+
+  private_service_connection {
+    name                           = "adb-private-service-connection"
+    private_connection_resource_id = azurerm_databricks_workspace.adb_workspace.id
+    is_manual_connection           = false
+    subresource_names              = ["databricks_ui_api"]
+  }  
+}
 
